@@ -191,9 +191,6 @@ class KwargReprNode(DagNode):
     def incoming_edge_map(self):
         return self.__incoming_edge_map
 
-    def update_edge_map(self, new_map):
-        self.__incoming_edge_map = new_map
-
     @property
     def short_repr(self):
         return self.name

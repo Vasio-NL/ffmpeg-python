@@ -98,12 +98,15 @@ def _add_required_splits(filter_nodes, outgoing_edge_maps):
 
                 new_outgoing_edge_map = {}
                 for y, item in enumerate(streams): # type: Node
-                    old_node = item[0]
                     new_outgoing_edge_map[y] = [item]
 
-                    old_node.update_edge_map({
-                        None: [(split_node), y, None]
-                    })
+                    old_node = item[0]
+                    old_edge_map = old_node.incoming_edge_map
+                    for edge_label, edge_info in old_edge_map.items():
+                        if edge_info[0] == upstream_node:
+                            old_edge_map[edge_label] = (split_node, y, None)
+                            break
+
 
                 outgoing_edge_maps[split_node] = new_outgoing_edge_map
                 filter_nodes.insert(i+1, split_node)
