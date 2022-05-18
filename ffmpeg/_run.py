@@ -3,6 +3,7 @@ from .dag import get_outgoing_edges, topo_sort
 from ._utils import basestring, convert_kwargs_to_cmd_line_args
 from builtins import str
 from functools import reduce
+import collections
 import copy
 import operator
 import subprocess
@@ -15,6 +16,7 @@ from .nodes import (
     InputNode,
     OutputNode,
     output_operator,
+    Node
 )
 
 try:
@@ -83,6 +85,29 @@ def _get_filter_spec(node, outgoing_edge_map, stream_name_map):
     )
     return filter_spec
 
+def _add_required_splits(filter_nodes, outgoing_edge_maps):
+    for i in range(len(filter_nodes)):
+        upstream_node = filter_nodes[i]
+        outgoing_edge_map = outgoing_edge_maps[upstream_node]
+        for label, streams in sorted(outgoing_edge_map.items()):
+            if len(streams) > 1:
+                split_node = FilterNode(
+                    stream_spec=upstream_node.stream(),
+                    name='split',
+                )
+
+                new_outgoing_edge_map = {}
+                for y, item in enumerate(streams): # type: Node
+                    old_node = item[0]
+                    new_outgoing_edge_map[y] = [item]
+
+                    old_node.update_edge_map({
+                        None: [(split_node), y, None]
+                    })
+
+                outgoing_edge_maps[split_node] = new_outgoing_edge_map
+                filter_nodes.insert(i+1, split_node)
+                outgoing_edge_maps[upstream_node] = {label: [(split_node, None, None)]}
 
 def _allocate_filter_stream_names(filter_nodes, outgoing_edge_maps, stream_name_map):
     stream_count = 0
@@ -159,6 +184,8 @@ def get_args(stream_spec, overwrite_output=False):
     output_nodes = [node for node in sorted_nodes if isinstance(node, OutputNode)]
     global_nodes = [node for node in sorted_nodes if isinstance(node, GlobalNode)]
     filter_nodes = [node for node in sorted_nodes if isinstance(node, FilterNode)]
+    _add_required_splits(filter_nodes, outgoing_edge_maps)
+
     stream_name_map = {(node, None): str(i) for i, node in enumerate(input_nodes)}
     filter_arg = _get_filter_arg(filter_nodes, outgoing_edge_maps, stream_name_map)
     args += reduce(operator.add, [_get_input_args(node) for node in input_nodes])
